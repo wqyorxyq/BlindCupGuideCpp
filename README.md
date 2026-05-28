@@ -6,6 +6,9 @@
 
 ## 功能
 
+- 浏览器前端操作界面，默认地址 `http://127.0.0.1:8080/`
+- 前端可开始/停止识别、选择摄像头、切换模拟检测、开关语音播报
+- 前端显示实时画面、当前语音提示、识别框、识别结果表和运行状态
 - 摄像头实时采集画面
 - OpenCV DNN 加载 ONNX 目标检测模型
 - 识别逻辑预留三类：`cup`、`hand`、`other`
@@ -40,23 +43,40 @@ cmake --build build --config Debug
 
 ## 运行
 
-在项目根目录运行：
-
-```powershell
-$env:PATH = "Z:\opencv\build\x64\vc16\bin;$env:PATH"
-.\build\Debug\blind_cup_guide.exe --mock
-```
-
-如果使用当前本机的 CMake 输出目录，命令是：
+默认启动浏览器前端：
 
 ```powershell
 $env:PATH = "Z:\opencv\build\x64\vc16\bin;$env:PATH"
 .\build\default\Debug\blind_cup_guide.exe --mock
 ```
 
+浏览器会打开：
+
+```text
+http://127.0.0.1:8080/
+```
+
+如果只启动服务、不自动打开浏览器：
+
+```powershell
+$env:PATH = "Z:\opencv\build\x64\vc16\bin;$env:PATH"
+.\build\default\Debug\blind_cup_guide.exe --mock --no-open-browser --port 8080
+```
+
+保留的命令行调试模式：
+
+```powershell
+$env:PATH = "Z:\opencv\build\x64\vc16\bin;$env:PATH"
+.\build\default\Debug\blind_cup_guide.exe --cli --mock
+```
+
 常用参数：
 
 ```text
+--web                  启动浏览器前端，默认
+--cli                  使用原 OpenCV 调试窗口
+--port <port>          前端端口，默认 8080
+--no-open-browser      启动服务但不自动打开浏览器
 --camera <index>       摄像头编号，默认 0
 --mock                 使用模拟检测结果跑通流程
 --console-tts          不调用语音接口，只在控制台打印提示

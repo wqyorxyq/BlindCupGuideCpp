@@ -1,6 +1,7 @@
 #include "blind_cup_guide/Application.h"
 #include "blind_cup_guide/MockObjectDetector.h"
 #include "blind_cup_guide/OpenCvDnnObjectDetector.h"
+#include "blind_cup_guide/WebApplication.h"
 
 #include <filesystem>
 #include <iostream>
@@ -17,6 +18,9 @@ namespace {
 
 struct CliOptions {
     int cameraIndex = 0;
+    int webPort = 8080;
+    bool webMode = true;
+    bool openBrowser = true;
     bool displayWindow = true;
     bool consoleSpeech = false;
     bool forceMock = false;
@@ -30,6 +34,10 @@ void printUsage(const char* programName) {
     std::cout
         << "Usage: " << programName << " [options]\n\n"
         << "Options:\n"
+        << "  --web                  Start the browser operation UI, default\n"
+        << "  --cli                  Use the original OpenCV debug window mode\n"
+        << "  --port <port>          Web UI port, default 8080\n"
+        << "  --no-open-browser      Start the Web UI without opening a browser\n"
         << "  --camera <index>       Camera index, default 0\n"
         << "  --model <path>         ONNX detector path, default models/cup_detector.onnx\n"
         << "  --labels <path>        Label file path, default models/labels.txt\n"
@@ -56,6 +64,14 @@ CliOptions parseArgs(int argc, char** argv) {
         if (arg == "--help" || arg == "-h") {
             printUsage(argv[0]);
             std::exit(0);
+        } else if (arg == "--web") {
+            options.webMode = true;
+        } else if (arg == "--cli") {
+            options.webMode = false;
+        } else if (arg == "--port") {
+            options.webPort = std::stoi(requireValue(arg));
+        } else if (arg == "--no-open-browser") {
+            options.openBrowser = false;
         } else if (arg == "--camera") {
             options.cameraIndex = std::stoi(requireValue(arg));
         } else if (arg == "--model") {
@@ -96,6 +112,23 @@ std::unique_ptr<bcg::IObjectDetector> createDetector(const CliOptions& options) 
     return std::make_unique<bcg::OpenCvDnnObjectDetector>(std::move(detectorOptions));
 }
 
+int runWebApplication(const CliOptions& cli) {
+    bcg::WebAppOptions webOptions;
+    webOptions.port = cli.webPort;
+    webOptions.openBrowser = cli.openBrowser;
+    webOptions.initialSettings.cameraIndex = cli.cameraIndex;
+    webOptions.initialSettings.useMockDetector = cli.forceMock;
+    webOptions.initialSettings.speechEnabled = true;
+    webOptions.initialSettings.consoleSpeech = cli.consoleSpeech;
+    webOptions.initialSettings.keepRunningAfterSuccess = true;
+    webOptions.initialSettings.confidenceThreshold = cli.confidenceThreshold;
+    webOptions.initialSettings.modelPath = cli.modelPath;
+    webOptions.initialSettings.labelsPath = cli.labelsPath;
+
+    bcg::WebApplication app{webOptions};
+    return app.run();
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -106,6 +139,9 @@ int main(int argc, char** argv) {
 
     try {
         const auto cli = parseArgs(argc, argv);
+        if (cli.webMode) {
+            return runWebApplication(cli);
+        }
 
         bcg::AppOptions appOptions;
         appOptions.cameraIndex = cli.cameraIndex;

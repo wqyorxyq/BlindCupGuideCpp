@@ -11,16 +11,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BCG_ENABLE_SAPI "Use Windows SAPI for speech output when available" ON)
 
-find_package(OpenCV REQUIRED COMPONENTS core videoio highgui imgproc dnn)
+find_package(OpenCV REQUIRED COMPONENTS core videoio highgui imgproc imgcodecs dnn)
 
 add_executable(blind_cup_guide
     src/Application.cpp
     src/CameraSource.cpp
     src/DetectionTypes.cpp
+    src/FrameAnnotator.cpp
     src/GuidanceEngine.cpp
+    src/LocalHttpServer.cpp
     src/MockObjectDetector.cpp
     src/OpenCvDnnObjectDetector.cpp
     src/SpeechSynthesizer.cpp
+    src/WebApplication.cpp
+    src/WebAssets.cpp
     src/main.cpp)
 
 target_include_directories(blind_cup_guide
@@ -34,6 +38,10 @@ target_link_libraries(blind_cup_guide
 if(WIN32 AND BCG_ENABLE_SAPI)
     target_compile_definitions(blind_cup_guide PRIVATE BCG_ENABLE_SAPI=1)
     target_link_libraries(blind_cup_guide PRIVATE ole32 sapi)
+endif()
+
+if(WIN32)
+    target_link_libraries(blind_cup_guide PRIVATE ws2_32 shell32)
 endif()
 
 if(MSVC)
