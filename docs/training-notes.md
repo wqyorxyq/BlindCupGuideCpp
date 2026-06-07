@@ -23,3 +23,69 @@ Guidance logic:
 - If the cup is right of the hand, the app says `往右边一点`.
 
 For a real assistive workflow, collect data from different lighting conditions, cup colors, hand positions, and desk backgrounds. Test with the target user before relying on the guidance.
+
+## Local Training Run
+
+Dataset:
+
+- `Z:/datasets/cup_guide`
+- Train images: 203
+- Validation images: 25
+- Test images: 26
+- Classes: `cup`, `hand`, `other`
+
+Environment:
+
+- Python 3.12.9
+- Ultralytics 8.4.61
+- PyTorch 2.11.0+cu128
+- GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+
+Training command:
+
+```powershell
+yolo detect train data=Z:/datasets/cup_guide/data.yaml model=yolo11n.pt epochs=100 imgsz=640 batch=8 device=0 project=Z:/BlindCupGuideRuns name=cup_guide_yolo11n exist_ok=True workers=0 patience=25 cache=False plots=True
+```
+
+Best checkpoint:
+
+```text
+Z:/BlindCupGuideRuns/cup_guide_yolo11n/weights/best.pt
+```
+
+Validation result for the best checkpoint:
+
+```text
+all    mAP50=0.753  mAP50-95=0.627
+cup    mAP50=0.864  mAP50-95=0.766
+hand   mAP50=0.766  mAP50-95=0.526
+other  mAP50=0.630  mAP50-95=0.589
+```
+
+ONNX export command:
+
+```powershell
+yolo export model=Z:/BlindCupGuideRuns/cup_guide_yolo11n/weights/best.pt format=onnx imgsz=640 simplify=True opset=12
+```
+
+Exported model copied to:
+
+```text
+Z:/BlindCupGuideCpp/models/cup_detector.onnx
+```
+
+ONNX validation result:
+
+```text
+all    mAP50=0.734  mAP50-95=0.606
+cup    mAP50=0.870  mAP50-95=0.753
+hand   mAP50=0.793  mAP50-95=0.559
+other  mAP50=0.537  mAP50-95=0.506
+```
+
+Next data improvements:
+
+- Add more `other` examples such as phones, mice, bottles, keys, books, bowls, and boxes.
+- Add more hard negatives: images with no cup, only hand, only other objects, and partially visible cups.
+- Add more lighting variation and desk backgrounds.
+- Keep the final camera angle close to the angle used during data collection.

@@ -7,4 +7,5 @@ out/
 *.vcxproj.user
 *.log
 *.onnx
+!models/cup_detector.onnx
 !models/.gitkeep
