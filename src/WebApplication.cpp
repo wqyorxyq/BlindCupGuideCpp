@@ -16,6 +16,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 #ifdef _WIN32
@@ -160,6 +161,17 @@ std::vector<unsigned char> buildPlaceholderJpeg(const std::string& message) {
     return encoded;
 }
 
+cv::Mat previewFrame(const cv::Mat& frame, int maxWidth) {
+    if (maxWidth <= 0 || frame.cols <= maxWidth) {
+        return frame;
+    }
+
+    const double scale = static_cast<double>(maxWidth) / static_cast<double>(frame.cols);
+    cv::Mat resized;
+    cv::resize(frame, resized, cv::Size{}, scale, scale, cv::INTER_AREA);
+    return resized;
+}
+
 } // namespace
 
 WebApplication::WebApplication(WebAppOptions options)
@@ -222,6 +234,9 @@ HttpResponse WebApplication::route(const HttpRequest& request) {
     if (request.method == "POST" && request.path == "/api/settings") {
         return updateSettingsResponse(request, false);
     }
+    if (request.method == "POST" && request.path == "/api/test-speech") {
+        return testSpeechResponse();
+    }
     return notFound();
 }
 
@@ -264,6 +279,19 @@ HttpResponse WebApplication::startResponse(const HttpRequest& request) {
 
 HttpResponse WebApplication::stopResponse() {
     stopCamera();
+    return statusResponse();
+}
+
+HttpResponse WebApplication::testSpeechResponse() {
+    WebAppSettings settingsSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        settingsSnapshot = settings_;
+    }
+
+    auto speech = createSpeechSynthesizer(settingsSnapshot.consoleSpeech);
+    speech->speak(u8"做对了！");
+    std::this_thread::sleep_for(std::chrono::milliseconds{1300});
     return statusResponse();
 }
 
@@ -335,6 +363,16 @@ void WebApplication::cameraLoop(WebAppSettings settings) {
     auto speech = createSpeechSynthesizer(settings.consoleSpeech);
     GuidanceEngine guidance;
     std::uint64_t frameCount = 0;
+    std::vector<Detection> detections;
+    Instruction instruction{InstructionKind::None, ""};
+    bool detectionReady = false;
+    auto lastDetectionAt = std::chrono::steady_clock::time_point{};
+    auto lastPreviewAt = std::chrono::steady_clock::time_point{};
+    const auto inferenceInterval =
+        std::chrono::milliseconds{std::max(100, settings.inferenceIntervalMs)};
+    const auto previewInterval =
+        std::chrono::milliseconds{std::max(100, settings.previewIntervalMs)};
+    cv::setNumThreads(std::max(1, settings.openCvThreads));
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -354,20 +392,39 @@ void WebApplication::cameraLoop(WebAppSettings settings) {
             break;
         }
 
-        auto detections = detector->detect(*frame);
-        auto instruction = guidance.evaluate(frame->size(), detections);
-        speakIfNeeded(instruction, *speech, settings.speechEnabled);
+        const auto now = std::chrono::steady_clock::now();
+        const bool shouldRunDetection =
+            !detectionReady || lastDetectionAt == std::chrono::steady_clock::time_point{} ||
+            now - lastDetectionAt >= inferenceInterval;
 
-        cv::Mat annotated = frame->clone();
-        drawDebugOverlay(annotated, detections, instruction);
+        if (shouldRunDetection) {
+            detections = detector->detect(*frame);
+            instruction = guidance.evaluate(frame->size(), detections);
+            speakIfNeeded(instruction, *speech, settings.speechEnabled);
+            lastDetectionAt = std::chrono::steady_clock::now();
+            detectionReady = true;
+        }
+
+        const bool shouldUpdatePreview =
+            lastPreviewAt == std::chrono::steady_clock::time_point{} ||
+            now - lastPreviewAt >= previewInterval;
 
         std::vector<unsigned char> encoded;
-        cv::imencode(".jpg", annotated, encoded, {cv::IMWRITE_JPEG_QUALITY, 82});
+        if (shouldUpdatePreview) {
+            cv::Mat annotated = frame->clone();
+            drawDebugOverlay(annotated, detections, instruction);
+            const cv::Mat preview = previewFrame(annotated, settings.previewMaxWidth);
+            cv::imencode(".jpg", preview, encoded,
+                         {cv::IMWRITE_JPEG_QUALITY, std::clamp(settings.jpegQuality, 35, 90)});
+            lastPreviewAt = now;
+        }
 
         ++frameCount;
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            latestJpeg_ = std::move(encoded);
+            if (!encoded.empty()) {
+                latestJpeg_ = std::move(encoded);
+            }
             state_.running = true;
             state_.success = instruction.kind == InstructionKind::Correct;
             state_.modelLoaded = modelLoaded;
@@ -384,7 +441,7 @@ void WebApplication::cameraLoop(WebAppSettings settings) {
             cameraRequested_ = false;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(12));
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
@@ -423,6 +480,16 @@ void WebApplication::applySettingsForm(const std::map<std::string, std::string>&
     settings_.consoleSpeech = formBool(form, "consoleSpeech", settings_.consoleSpeech);
     settings_.keepRunningAfterSuccess =
         formBool(form, "keepRunningAfterSuccess", settings_.keepRunningAfterSuccess);
+    settings_.inferenceIntervalMs =
+        std::clamp(formInt(form, "inferenceIntervalMs", settings_.inferenceIntervalMs), 100, 3000);
+    settings_.previewIntervalMs =
+        std::clamp(formInt(form, "previewIntervalMs", settings_.previewIntervalMs), 100, 3000);
+    settings_.previewMaxWidth =
+        std::clamp(formInt(form, "previewMaxWidth", settings_.previewMaxWidth), 320, 1280);
+    settings_.jpegQuality =
+        std::clamp(formInt(form, "jpegQuality", settings_.jpegQuality), 35, 90);
+    settings_.openCvThreads =
+        std::clamp(formInt(form, "openCvThreads", settings_.openCvThreads), 1, 8);
     settings_.confidenceThreshold =
         std::clamp(formFloat(form, "confidenceThreshold", settings_.confidenceThreshold), 0.05F,
                    0.95F);
@@ -451,6 +518,11 @@ std::string WebApplication::buildStatusJson() {
     json << "\"consoleSpeech\":" << (settings_.consoleSpeech ? "true" : "false") << ",";
     json << "\"keepRunningAfterSuccess\":"
          << (settings_.keepRunningAfterSuccess ? "true" : "false") << ",";
+    json << "\"inferenceIntervalMs\":" << settings_.inferenceIntervalMs << ",";
+    json << "\"previewIntervalMs\":" << settings_.previewIntervalMs << ",";
+    json << "\"previewMaxWidth\":" << settings_.previewMaxWidth << ",";
+    json << "\"jpegQuality\":" << settings_.jpegQuality << ",";
+    json << "\"openCvThreads\":" << settings_.openCvThreads << ",";
     json << "\"confidenceThreshold\":" << settings_.confidenceThreshold << ",";
     json << "\"modelPath\":\"" << jsonEscape(settings_.modelPath.string()) << "\",";
     json << "\"labelsPath\":\"" << jsonEscape(settings_.labelsPath.string()) << "\"";

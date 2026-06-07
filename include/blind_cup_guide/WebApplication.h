@@ -22,6 +22,11 @@ struct WebAppSettings {
     bool speechEnabled = true;
     bool consoleSpeech = false;
     bool keepRunningAfterSuccess = true;
+    int inferenceIntervalMs = 650;
+    int previewIntervalMs = 220;
+    int previewMaxWidth = 960;
+    int jpegQuality = 68;
+    int openCvThreads = 2;
     float confidenceThreshold = 0.35F;
     std::filesystem::path modelPath = "models/cup_detector.onnx";
     std::filesystem::path labelsPath = "models/labels.txt";
@@ -61,6 +66,7 @@ private:
     HttpResponse updateSettingsResponse(const HttpRequest& request, bool startAfterUpdate);
     HttpResponse startResponse(const HttpRequest& request);
     HttpResponse stopResponse();
+    HttpResponse testSpeechResponse();
 
     void startCamera();
     void stopCamera();

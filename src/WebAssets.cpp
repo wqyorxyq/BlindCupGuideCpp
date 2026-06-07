@@ -32,6 +32,7 @@ std::string indexHtml() {
       <div class="control-row">
         <button id="startButton" class="primary-button" type="button">开始识别</button>
         <button id="stopButton" class="secondary-button" type="button">停止</button>
+        <button id="testSpeechButton" class="tertiary-button" type="button">测试语音</button>
       </div>
 
       <form id="settingsForm" class="settings-form">
@@ -43,6 +44,16 @@ std::string indexHtml() {
         <label class="field">
           <span>置信度阈值</span>
           <input id="confidenceThreshold" name="confidenceThreshold" type="number" min="0.05" max="0.95" step="0.05" value="0.35">
+        </label>
+
+        <label class="field">
+          <span>推理间隔(ms)</span>
+          <input id="inferenceIntervalMs" name="inferenceIntervalMs" type="number" min="100" max="3000" step="50" value="650">
+        </label>
+
+        <label class="field">
+          <span>预览间隔(ms)</span>
+          <input id="previewIntervalMs" name="previewIntervalMs" type="number" min="100" max="3000" step="50" value="220">
         </label>
 
         <label class="field wide">
@@ -288,7 +299,7 @@ h2 {
 
 .control-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -324,6 +335,16 @@ button:disabled {
 
 .secondary-button:hover:not(:disabled) {
   background: var(--danger-bg);
+}
+
+.tertiary-button {
+  color: var(--accent-strong);
+  background: #ffffff;
+  border-color: #a8d1bf;
+}
+
+.tertiary-button:hover:not(:disabled) {
+  background: var(--ok-bg);
 }
 
 .settings-form {
@@ -514,6 +535,7 @@ const els = {
   form: $("settingsForm"),
   start: $("startButton"),
   stop: $("stopButton"),
+  testSpeech: $("testSpeechButton"),
   preview: $("preview"),
   connection: $("connectionState"),
   instruction: $("instructionText"),
@@ -526,6 +548,8 @@ const els = {
 };
 
 let settingsHydrated = false;
+let statusInFlight = false;
+let previewInFlight = false;
 
 function formData() {
   const data = new URLSearchParams();
@@ -544,6 +568,8 @@ function hydrateSettings(settings) {
   if (settingsHydrated || !settings) return;
   $("cameraIndex").value = settings.cameraIndex ?? 0;
   $("confidenceThreshold").value = settings.confidenceThreshold ?? 0.35;
+  $("inferenceIntervalMs").value = settings.inferenceIntervalMs ?? 650;
+  $("previewIntervalMs").value = settings.previewIntervalMs ?? 220;
   $("modelPath").value = settings.modelPath || "models/cup_detector.onnx";
   $("labelsPath").value = settings.labelsPath || "models/labels.txt";
   $("useMockDetector").checked = Boolean(settings.useMockDetector);
@@ -641,17 +667,34 @@ function applyStatus(state) {
 }
 
 async function refreshStatus() {
+  if (statusInFlight) return;
+  statusInFlight = true;
   try {
     const response = await fetch("/status", { cache: "no-store" });
     applyStatus(await response.json());
   } catch (error) {
     applyStatus({ running: false, error: "连接后端失败", detections: [] });
+  } finally {
+    statusInFlight = false;
   }
 }
 
 function refreshPreview() {
+  if (previewInFlight) return;
+  previewInFlight = true;
   els.preview.src = `/snapshot.jpg?t=${Date.now()}`;
+  setTimeout(() => {
+    previewInFlight = false;
+  }, 900);
 }
+
+els.preview.addEventListener("load", () => {
+  previewInFlight = false;
+});
+
+els.preview.addEventListener("error", () => {
+  previewInFlight = false;
+});
 
 els.start.addEventListener("click", async () => {
   els.start.disabled = true;
@@ -672,6 +715,18 @@ els.stop.addEventListener("click", async () => {
   }
 });
 
+els.testSpeech.addEventListener("click", async () => {
+  els.testSpeech.disabled = true;
+  try {
+    const response = await fetch("/api/test-speech", { method: "POST" });
+    applyStatus(await response.json());
+  } catch (error) {
+    els.lastError.textContent = error.message;
+  } finally {
+    els.testSpeech.disabled = false;
+  }
+});
+
 els.form.addEventListener("change", async () => {
   try {
     const response = await fetch("/api/settings", {
@@ -685,8 +740,8 @@ els.form.addEventListener("change", async () => {
   }
 });
 
-setInterval(refreshStatus, 700);
-setInterval(refreshPreview, 220);
+setInterval(refreshStatus, 1200);
+setInterval(refreshPreview, 550);
 refreshStatus();
 refreshPreview();
 )JS";

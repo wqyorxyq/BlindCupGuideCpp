@@ -2,14 +2,15 @@
 
 namespace bcg {
 
-bool CameraSource::open(int cameraIndex) {
+bool CameraSource::open(int cameraIndex, cv::Size frameSize) {
     capture_.open(cameraIndex, cv::CAP_ANY);
     if (!capture_.isOpened()) {
         return false;
     }
 
-    capture_.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-    capture_.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
+    capture_.set(cv::CAP_PROP_FRAME_WIDTH, frameSize.width);
+    capture_.set(cv::CAP_PROP_FRAME_HEIGHT, frameSize.height);
+    capture_.set(cv::CAP_PROP_FPS, 15);
     return true;
 }
 

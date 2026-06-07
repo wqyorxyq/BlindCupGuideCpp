@@ -3,6 +3,8 @@
 #include "blind_cup_guide/OpenCvDnnObjectDetector.h"
 #include "blind_cup_guide/WebApplication.h"
 
+#include <opencv2/core/utils/logger.hpp>
+
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -136,6 +138,8 @@ int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #endif
+
+    cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
 
     try {
         const auto cli = parseArgs(argc, argv);

@@ -53,6 +53,9 @@ public:
         if (FAILED(voiceResult) || voice_ == nullptr) {
             throw std::runtime_error("Windows SAPI voice creation failed.");
         }
+
+        voice_->SetVolume(100);
+        voice_->SetRate(0);
     }
 
     ~WindowsSapiSpeechSynthesizer() override {

@@ -9,7 +9,7 @@ namespace bcg {
 
 class CameraSource {
 public:
-    bool open(int cameraIndex);
+    bool open(int cameraIndex, cv::Size frameSize = {960, 540});
     std::optional<cv::Mat> readFrame();
     bool isOpened() const;
 
