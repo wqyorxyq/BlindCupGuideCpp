@@ -1,6 +1,6 @@
 # Training Notes
 
-This project is ready for a future ONNX object detector. The runtime expects three logical classes:
+This repository includes a trained ONNX object detector. To replace or retrain it, prepare your own dataset; the original images and training checkpoints are not included. The runtime expects three logical classes:
 
 1. `cup`
 2. `hand`
@@ -24,11 +24,15 @@ Guidance logic:
 
 For a real assistive workflow, collect data from different lighting conditions, cup colors, hand positions, and desk backgrounds. Test with the target user before relying on the guidance.
 
-## Local Training Run
+## Recorded Training Run
+
+The metrics below are historical experiment records, not a fresh evaluation. All example paths are relative to the repository root. Prepare `datasets/cup_guide/data.yaml` and the corresponding images and labels before running training; update dataset paths in that YAML to match your data layout.
+
+Training is optional: the C++ application can use the included ONNX file without Python, CUDA or Ultralytics. To reproduce the recorded training environment, prepare a separate Python environment with compatible Ultralytics and PyTorch versions. `device=0` in the example requires a supported GPU; use `device=cpu` when needed.
 
 Dataset:
 
-- `Z:/datasets/cup_guide`
+- `datasets/cup_guide`
 - Train images: 203
 - Validation images: 25
 - Test images: 26
@@ -44,13 +48,13 @@ Environment:
 Training command:
 
 ```powershell
-yolo detect train data=Z:/datasets/cup_guide/data.yaml model=yolo11n.pt epochs=100 imgsz=640 batch=8 device=0 project=Z:/BlindCupGuideRuns name=cup_guide_yolo11n exist_ok=True workers=0 patience=25 cache=False plots=True
+yolo detect train data=datasets/cup_guide/data.yaml model=yolo11n.pt epochs=100 imgsz=640 batch=8 device=0 project=runs name=cup_guide_yolo11n exist_ok=True workers=0 patience=25 cache=False plots=True
 ```
 
 Best checkpoint:
 
 ```text
-Z:/BlindCupGuideRuns/cup_guide_yolo11n/weights/best.pt
+runs/cup_guide_yolo11n/weights/best.pt
 ```
 
 Validation result for the best checkpoint:
@@ -65,13 +69,13 @@ other  mAP50=0.630  mAP50-95=0.589
 ONNX export command:
 
 ```powershell
-yolo export model=Z:/BlindCupGuideRuns/cup_guide_yolo11n/weights/best.pt format=onnx imgsz=640 simplify=True opset=12
+yolo export model=runs/cup_guide_yolo11n/weights/best.pt format=onnx imgsz=640 simplify=True opset=12
 ```
 
-Exported model copied to:
+Copy the exported `runs/cup_guide_yolo11n/weights/best.onnx` file to:
 
 ```text
-Z:/BlindCupGuideCpp/models/cup_detector.onnx
+models/cup_detector.onnx
 ```
 
 ONNX validation result:

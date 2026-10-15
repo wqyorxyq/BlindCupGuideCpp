@@ -7,19 +7,16 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/default",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "OpenCV_DIR": "Z:/opencv/build/x64/vc16/lib"
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
       "name": "local-vs",
-      "displayName": "Local Visual Studio with Z:/opencv",
+      "displayName": "Visual Studio 2026",
       "generator": "Visual Studio 18 2026",
       "binaryDir": "${sourceDir}/build/local-vs",
       "architecture": "x64",
-      "cacheVariables": {
-        "OpenCV_DIR": "Z:/opencv/build/x64/vc16/lib"
-      }
+      "cacheVariables": {}
     },
     {
       "name": "vs2022",
@@ -27,9 +24,7 @@
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/build/vs2022",
       "architecture": "x64",
-      "cacheVariables": {
-        "OpenCV_DIR": "Z:/opencv/build/x64/vc16/lib"
-      }
+      "cacheVariables": {}
     }
   ],
   "buildPresets": [

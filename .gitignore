@@ -1,4 +1,7 @@
 build/
+tools/vcpkg/
+datasets/
+runs/
 out/
 .vs/
 .vscode/
